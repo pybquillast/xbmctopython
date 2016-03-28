@@ -2,7 +2,7 @@
 '''
 Created on 29/03/2015
 
-@author: Alex Montes Barrios
+@author: pybquillast
 
 '''
 import os
