@@ -67,34 +67,23 @@ If you clone the repository, for example, to the  directory **c:/modxbmcpy** in 
 'mpaa': u'R', 'playcount': 0, 'trailer_url': u'2h6IKpgFixg', 
 'trailer': u'plugin://plugin.video.youtube/?action=play_video&videoid=2h6IKpgFixg'}
 
-## KodiServer Setup
+## KodiServer Interactive Session Setup
 
-- In the module check the importer installation: 
-```    
-if __name__ == '__main__':
-
-    importer = KodiScriptImporter.KodiScriptImporter()
-    importer.install(True)
-    import xbmc, xbmcgui, xbmcaddon, xbmcplugin
-    ...
-    ...
-```    
-- If you are not a win x86 user, change this instruction
-```    
-    importer = KodiScriptImporter.KodiScriptImporter()
-```    
-for:
-```    
-    importer = KodiScriptImporter.KodiScriptImporter(kodi, kodi_home)
-```    
-where:
-```    
-        kodi:       string - Path where the Kodi program addons was installed.
-                    In windows, this default to $PROGRAMFILES/Kodi/Addons.
-        kodi_home:  string - Path where the installed addons are created.
-                    In Windows, this default to $APPDATA/Kodi/Addons
-```    
-                    
+- Check the importer installation that you test in KodiScriptImporter Interactive Session Setup
+```
+    >>> import sys
+    >>> sys.path.append('c:/modxbmcpy')
+    >>> import KodiServer as ks
+    >>> http = ks.runServer()   # Here you must apply the same parameters that you use for KodiScriptImporter
+```
+- Now your default webbrowser must open in the address localhost:5000
+- The webbrowser must show all your installed addons in groups: video, audio (music), image (picture) and executable (program)
+- Click the addon you want to open. The audio and executable addons are based, specially when show the media, in the widgets defined in xbmcgui which are not ported yet
+- For stop the server
+```
+    >>> httpd.shutdown()                     # Stop the server
+    >>> httpd.server_clase()                 # Close the socket
+```
 
 
 
