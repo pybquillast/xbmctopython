@@ -108,8 +108,8 @@ def addDirectoryItems(handle, items, totalItems = 0):
         if not xbmcplugin.addDirectoryItems(int(sys.argv[1]), [(url, listitem, False,)]:
             raise
     """
-    menuObj = sys.modules['__main__'].menuObj
-    menuObj.extendNextMenu(items)
+    for url, listItem, isFolder in items:
+        addDirectoryItem(handle, url, listItem, isFolder, totalItems)
 
 def addSortMethod(handle, sortMethod, label2 = "%D"):
     """

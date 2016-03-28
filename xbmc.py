@@ -475,6 +475,7 @@ class PlayList(object):
 
         Use PlayList[int position] or __getitem__(int position) to get a PlayListItem.
         """
+        pass
     def __getitem__(self):
         """
         x.__getitem__(y) <==> x[y]

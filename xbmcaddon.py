@@ -122,7 +122,7 @@ class Addon(object):
         if os.path.exists(os.path.join(langPath, 'strings.xml')):
             langPath = os.path.join(langPath, 'strings.xml')
             root = ET.parse(langPath).getroot()
-            srchStr = './/string[@id="' + stringId + '"]'
+            srchStr = './/string[@id="%s"]' % (stringId)
             element = root.find(srchStr)
             if element is not None: return element.text
         elif os.path.exists(os.path.join(langPath, 'strings.po')):

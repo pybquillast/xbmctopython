@@ -12,6 +12,9 @@ import os
 import imp
 import logging
 import re
+import urllib
+import urlparse
+import traceback
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -42,14 +45,31 @@ class KodiScriptImporter:
             - For users other than Windows x86, this two variables must be explicitally set.
             - Only subdirectories that starts with 'script.module' are considered python modules
         """
+        self.isInstalled = False
+        self.logFilter = 0
         self.stack = []
+        self.indent = ''
         self.toSave = []
         self.nullstack = set()
         self.path = None
         self.pathprefix = pathprefix = 'script.module'
         self.setPaths(kodi, kodi_home)
         self.addonDir = None
+        self.setLogger()
         self.initRootPaths()
+
+    def setLogger(self, strLogger=None):
+        self.logger = logging.getLogger('%s.importer' % (__name__))
+        ch = logging.StreamHandler(strLogger)
+        formatter = logging.Formatter('%(asctime)-15s %(levelname)-6s %(message)s')
+        ch.setFormatter(formatter)
+        self.logger.addHandler(ch)
+        self.logger.setLevel(logging.INFO)
+
+    def log(self, msg, level=2):
+        if self.logFilter < 0: return
+        if self.logFilter == 0 and level in [logging.INFO, logging.DEBUG]: return
+        self.logger.log(level, msg)
 
     def setPaths(self, kodi, kodi_home):
         baseDirectory = os.path.dirname(__file__)
@@ -65,7 +85,7 @@ class KodiScriptImporter:
 
         if not all(map(os.path.exists,[self.KODI, self.KODI_HOME])):
             msg = "kodi: " + self.KODI + ' or kodi_home: ' + self.KODI_HOME + "doesn't exits"
-            logger.log(logging.CRITICAL, msg)
+            self.log(msg, logging.CRITICAL)
             raise ImportError(msg)
 
         self.path_cache = {}
@@ -76,7 +96,7 @@ class KodiScriptImporter:
                 self.path_cache[stub] = stubmod
             else:
                 msg = stubmod + '.py' + " doesn't exits"
-                logger.log(logging.CRITICAL, msg)
+                self.log(msg, logging.CRITICAL)
                 raise ImportError(msg)
 
     def setAddonDir(self, addonDir):
@@ -96,13 +116,29 @@ class KodiScriptImporter:
 
     def initRootPaths(self):
         self.rootPaths = [self.KODI_STUBS]
-        pattern = r'<extension\s+point="xbmc.python.(?P<type>[^"]+)"\s+library="(?P<lib>[^"]+)"\s*/*>'
+        pattern = r'<extension(?P<attrib>.+?point="xbmc.python.[^"]+".*?)/*>'
         for apath in [self.KODI, self.KODI_HOME]:
             dirs = [adir for adir in os.walk(apath).next()[1] if adir.startswith('script.module')]
             for adir in dirs:
-                with open(os.path.join(apath, adir,'addon.xml'), 'r') as f:
+                fullname = os.path.join(apath, adir,'addon.xml')
+                with open(fullname, 'r') as f:
                     content = f.read()
-                atype, alib = re.findall(pattern, content)[0]
+                try:
+                    attrib = re.findall(pattern, content, re.DOTALL)[0]
+                    self.log(adir + '***' + attrib, logging.INFO)
+                    alib = re.findall(r'library="(?P<lib>[^"]+)"', attrib)[0]
+                except Exception as e:
+                    if os.path.exists(os.path.join(apath, adir, 'lib')):
+                        alib = 'lib'
+                        msg = 'While processing {0} an error ocurred. Defaulting the root path for module {1} to special://home/addons/{1}/lib'
+                        msg = msg.format(fullname, adir, adir)
+                        self.log(msg,logging.WARNING)
+                    else:
+                        msg = 'While processing ' + fullname + ': ' + str(e)
+                        self.log(msg, logging.ERROR)
+                        msg = traceback.format_exc()
+                        self.log(msg, logging.ERROR)
+                        continue
                 root = os.path.join(apath, adir, alib)
                 self.rootPaths.append(root)
 
@@ -117,21 +153,23 @@ class KodiScriptImporter:
                 if os.path.exists(os.path.join(testpath, '__init__.py')) or os.path.exists(testpath + '.py'):
                     break
             else:
+                if self.stack: self.stack.append(self.indent + fullname)
                 return None
         elif path and (path[0].startswith(self.KODI_HOME) or path[0].startswith(self.KODI)):
             testpath = os.path.join(path[0], lastname)
         else:
+            if self.stack: self.stack.append(self.indent + fullname)
             return None
 
         if os.path.exists(testpath) or os.path.exists(testpath + '.py'):
-            logger.log(logging.INFO, 'Importing module ' + fullname)
+            self.log('Importing module ' + fullname, logging.INFO)
             self.path_cache[fullname] = os.path.normpath(testpath)
             msg = 'found:' + fullname + ' at: ' + testpath
-            logger.log(logging.DEBUG, msg)
+            self.log(msg, logging.DEBUG)
             return self
 
         msg = 'Not found: ' + fullname
-        logger.log(logging.DEBUG, msg)
+        self.log(msg, logging.DEBUG)
         self.nullstack.add(fullname)
         return
 
@@ -164,7 +202,8 @@ class KodiScriptImporter:
 
     def load_module(self, fullname):
         mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
-        self.stack.append(fullname)
+        self.stack.append(self.indent + fullname)
+        self.indent += 4*' '
         mod.__file__ = self.get_filename(fullname)
         mod.__loader__ = self
         mod.__package__ = fullname.rpartition('.')[0]
@@ -175,52 +214,36 @@ class KodiScriptImporter:
         try:
             exec(code, mod.__dict__)
         except:
-            if self.stack[0] == fullname:
-                msg = '***' + fullname + '*** An error has ocurred. The following modules that were loaded before the error ocurred, are going to be unloaded: '
-                logger.log(logging.DEBUG, msg)
-                while self.stack:
-                    key = self.stack.pop()
-                    if sys.modules.has_key(key):
-                        sys.modules.pop(key)
-                        logger.log(logging.DEBUG, key)
-            pass
+            msg = 'An error has ocurred loading module : ' + fullname
+            self.log(msg, logging.WARNING)
+            self.log('The following modules will be unloaded: ', logging.WARNING)
+            while 1:
+                fullkey = self.stack.pop()
+                key = fullkey.strip()
+                if sys.modules.has_key(key):
+                    sys.modules.pop(key)
+                    self.log(fullkey, logging.WARNING)
+                if key == fullname: break
+            self.indent = fullkey.find(fullname)* ' '
+            raise ImportError(msg)
         else:
             if self.stack[0] == fullname:
-                logger.log(logging.INFO, 'IMPORT %s successful' % (fullname))
+                self.log('IMPORT %s successful' % (fullname), logging.INFO)
                 if self.stack[1:]:
                     msg = 'The following modules were loaded in the process : '
-                    logger.log(logging.INFO, msg)
-                    for key in sorted(self.stack[1:]): logger.log(logging.INFO, key)
-                    for fullname, fullpath in sorted(self.toSave):
-                        self.path_cache[fullname] = os.path.splitext(fullpath)[0]
-                        logger.log(logging.INFO, fullname)
+                    self.log(msg, logging.DEBUG)
+                    for name in self.stack:
+                        key = name.strip()
+                        if not sys.modules.get(key, ''): name += ' (dummy)'
+                        self.log(name, logging.DEBUG)
                 pass
+            else:
+                self.indent = self.indent[:-4]
         finally:
-            if self.stack[0] == fullname:
+            if self.stack and self.stack[0] == fullname:
                 self.stack = []
-            if self.nullstack:
-                msg = '******The following dummy modules are going to be unloaded : *****'
-                logger.log(logging.DEBUG, msg)
-                toSave = []
-                while self.nullstack:
-                    key = self.nullstack.pop()
-                    if sys.modules.has_key(key) and not sys.modules[key]:
-                        rootname = key.rpartition('.')[2]
-                        if sys.modules.has_key(rootname) and hasattr(sys.modules[rootname], '__file__'):
-                            filename = sys.modules[rootname].__file__
-                            bFlag = filename.startswith(self.KODI_HOME) or filename.startswith(self.KODI)
-                            bFlag = bFlag and not self.path_cache.has_key(rootname)
-                            if bFlag:
-                                toSave.append((rootname, sys.modules[rootname].__file__))
-                        sys.modules.pop(key)
-                        logger.log(logging.DEBUG, key)
-                if toSave:
-                    msg = '******The following modules were created outside the KodiScriptImporter  : *****'
-                    logger.log(logging.DEBUG, msg)
-                    for fullname, fullpath in sorted(toSave):
-                        logger.log(logging.DEBUG, fullname.ljust(15) + '  ' + fullpath)
-                        self.toSave.append((fullname, fullpath))
-                    pass
+                self.indent = ''
+        pass
         return mod
 
     def install(self, meta_path = True):
@@ -234,12 +257,12 @@ class KodiScriptImporter:
             - importer = ksi.KodiScriptImporter()           # For Windows x86 users
             - importer.install(False)                       # Install as a path hook
         Note:
-            Define a logger in your __main__ script to view messages from the logging in this module
+            Define a self.logger in your __main__ script to view messages from the logging in this module
         """
 
         if meta_path:
             sys.meta_path.append(self)
-            logger.log(logging.INFO, 'Installed as Meta Path')
+            self.log('Installed as Meta Path', logging.INFO)
         else:
             class trnClass:
                 def __init__(aninst, path):
@@ -255,25 +278,137 @@ class KodiScriptImporter:
 
             sys.path_hooks.append(trnClass)
             sys.path.insert(0, self.pathprefix)
-            logger.log(logging.INFO, 'Installed as Path Hook')
+            self.log('Installed as Path Hook', logging.INFO)
         import xbmc
-        logger.log(logging.INFO, 'Mapping "special://xbmc" to %s' % self.KODI)
+        self.log('Mapping "special://xbmc" to %s' % self.KODI, logging.INFO)
         xbmc.special_xbmc = self.KODI
-        logger.log(logging.INFO, 'Mapping "special://home" to %s' % os.path.dirname(self.KODI_HOME))
+        self.log('Mapping "special://home" to %s' % os.path.dirname(self.KODI_HOME), logging.INFO)
         xbmc.special_home = os.path.dirname(self.KODI_HOME)
+        self.isInstalled = True
+
+    def lstModules(self):
+        pattern = r'<addon(?P<attrib>.+?id="placeholder".*?)>'
+        retLst = []
+        linf, lsup = 1, -1 if self.addonDir else len(self.rootPaths)
+        for mod in self.rootPaths[linf:lsup]:
+            path = os.path.dirname(mod)
+            addonId = os.path.basename(path)
+            fullname = os.path.join(path, 'addon.xml')
+            with open(fullname, 'r') as f:
+                content = f.read()
+            try:
+                attrib = re.findall(pattern.replace('placeholder', addonId), content, re.DOTALL)[0]
+                name = re.findall(r'name="(?P<name>[^"]+)"', attrib)[0]
+            except:
+                pass
+            retLst.append((name, addonId, os.walk(mod).next()[1]))
+        return sorted(retLst)
+
+
+class Runner:
+    def __init__(self, importer, strLogger=None):
+        if not importer.isInstalled: importer.install()
+        self.answ = []
+        self.importer = importer
+        self.xbmcLoglevel = 1
+        self.setLogger(strLogger)
+
+    def setLogger(self, strLogger):
+        import xbmc
+        self.logger = logging.getLogger('%s.runner' % (__name__))
+        ch = logging.StreamHandler(strLogger)
+        ch.setLevel(xbmc.LOGDEBUG + 1)
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        ch.setFormatter(formatter)
+        self.logger.addHandler(ch)
+        self.logger.setLevel(xbmc.LOGDEBUG + 1)
+
+    def initGlobals(self):
+        self.answ = []
+        theGlobals = {}
+        exec 'import sys' in theGlobals
+        theGlobals['sys'].argv = [0,0,0]
+        exec 'import xbmc, xbmcgui, xbmcplugin, xbmcaddon, xbmcvfs' in theGlobals
+        self.redefineXbmcMethods(theGlobals)
+        theGlobals["__name__"] = "__main__"
+        self.theGlobals = theGlobals
+
+    def redefineXbmcMethods(self, theGlobals):
+        theGlobals['xbmc'].log = self.log
+        theGlobals['xbmcplugin'].setResolvedUrl = self.setResolvedUrl
+        theGlobals['xbmcplugin'].addDirectoryItem = self.addDirectoryItem
+        theGlobals['xbmcplugin'].endOfDirectory = self.endOfDirectory
+
+    def log(self, msg, level = 2):
+        logLst = ['DEBUG', 'INFO', 'NOTICE', 'WARNING',
+               'ERROR', 'SEVERE', 'FATAL', 'NONE']
+        if self.xbmcLoglevel < 0: return
+        if self.xbmcLoglevel == 0 and level in ['DEBUG', 'INFO']: return
+        msg = '{0:>9s}:{1}'.format(logLst[level], msg)
+        self.logger.log(level+1, msg)
+
+    def setResolvedUrl(self, handle, succeeded, listitem):
+        if not succeeded: return
+        self.answ = (handle, False, listitem)
+        pass
+
+    def addDirectoryItem(self, handle, url, listitem, isFolder = False, totalItems = 0):
+        self.answ.append((handle, url, listitem, isFolder, totalItems))
+
+    def endOfDirectory(self, handle, succeeded = True, updateListing = False, cacheToDisc = True):
+        if not succeeded: return
+        self.answ = (handle, True, self.answ)
+        pass
+
+    def run(self, url):
+        self.initGlobals()
+        xbmc = self.theGlobals['xbmc']
+        urlScheme = urlparse.urlparse(url)
+        if urlScheme.scheme != 'plugin': return             # Plugin diferente
+        pluginId, urlArgs = urllib.splitquery(url)
+        self.theGlobals['sys'].argv = [pluginId, self.theGlobals['sys'].argv[1] + 1, '?' + (urlArgs or '')]
+        actualID = urlScheme.netloc
+        addonDir = xbmc.translatePath('special://home/addons/' + actualID)
+        self.addonID = actualID
+        sourceCode = self.getCompiledAddonSource(actualID)
+        self.importer.setAddonDir(addonDir)
+        try:
+            exec(sourceCode, self.theGlobals)
+        except Exception as e:
+            self.log(str(e), logging.ERROR)
+            msg = traceback.format_exc()
+            self.log(msg, logging.ERROR)
+            self.answ = None
+        return self.answ
+
+    def getCompiledAddonSource(self, addonId):
+        xbmcaddon = self.theGlobals['xbmcaddon']
+        addon = xbmcaddon.Addon(addonId)
+        path = addon.getAddonInfo('path')
+        addonSourceFile = addon.getAddonInfo('library')
+        addonFile = os.path.join(path, addonSourceFile)
+        with open(addonFile, 'r') as f:
+            addonSource = f.read()
+        return compile(addonSource, addonFile, 'exec')
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)-6s %(message)s')
+    import pprint
     meta_path = True
     importador = KodiScriptImporter()
     importador.install(meta_path)
-    import xbmc
+    arunner = Runner(importador)
+    pprint.pprint( importador.lstModules())
+    import requests
+    # import bs4
 
-    import metahandler                      # @UnresolvedImport
-    from metahandler import metahandlers    # @UnresolvedImport
-    for obj in dir(metahandlers):
-        print obj
     import urlresolver                      # @UnresolvedImport
-
-    print urlresolver.resolve('https://www.youtube.com/watch?v=EiOglTERPEo')
+    # import metahandler                      # @UnresolvedImport
+    # from metahandler import metahandlers    # @UnresolvedImport
+    # for obj in dir(metahandlers):
+    #     print obj
+    #
+    # print urlresolver.resolve('https://www.youtube.com/watch?v=EiOglTERPEo')
+    a, b, c = arunner.run('plugin://plugin.video.youtube/?action=play_video&videoid=EiOglTERPEo')
+    print c.getProperty('path')
+    pass
