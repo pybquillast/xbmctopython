@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Xbmctopython by pybquillast</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Xbmctopython</h1>
+      <h2 class="project-tagline">Porting XBMC modules to python. Following steps in xbmcstubs.</h2>
+      <a href="https://github.com/pybquillast/xbmctopython" class="btn">View on GitHub</a>
+      <a href="https://github.com/pybquillast/xbmctopython/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/pybquillast/xbmctopython/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="xbmctopython" class="anchor" href="#xbmctopython" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>xbmctopython</h1>
+
+<p>Porting XBMC modules to python. Following steps in xbmcstubs.</p>
+
+<h2>
+<a id="description" class="anchor" href="#description" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Description</h2>
+
+<p>This project has 7 python modules</p>
+
+<p>The basic modules are: xbmc.py, xbmcaddon.py, xbmcplugin.py, xbmcgui.py and xbmcvfs.py.</p>
+
+<p>This modules are the XBMC (KODI) modules and contains python code of some/all the members in it. Check the files to verify the objects that are ported in this version</p>
+
+<p>The complementary modules: </p>
+
+<ul>
+<li>KodiScriptImporter.py: This module is used to install a hook in the python importer system that makes available the basic modules and the Kodi Script modules</li>
+<li>KodiServer.py: This module is used wih two purposes. The first, as a run module to test the KodiScriptImporter system with the video addons installed in your system. The second. as a debug module, to place breakpoints in the addon you are going to test and verify all you need.</li>
+</ul>
+
+<h2>
+<a id="requirements" class="anchor" href="#requirements" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Requirements</h2>
+
+<p>This project has been tested in a system with the following characteristics:</p>
+
+<ul>
+<li>Windows Vista SP2</li>
+<li>Python 2.7.9</li>
+<li>Chrome Browser (For KodiServer client)</li>
+</ul>
+
+<h2>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Installation</h2>
+
+<ul>
+<li>Clone the repository to a directory in your system</li>
+<li>Make the directory of the first step available throught python path.</li>
+</ul>
+
+<h2>
+<a id="kodiscriptimporter-interactive-session-setup" class="anchor" href="#kodiscriptimporter-interactive-session-setup" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>KodiScriptImporter Interactive Session Setup</h2>
+
+<p>If you clone the repository, for example, to the  directory <strong>c:/modxbmcpy</strong> in your system.</p>
+
+<ul>
+<li><p>Start an interactive session</p></li>
+<li><p>Make available <strong>c:/modxbmcpy</strong> to python trought python path</p></li>
+</ul>
+
+<pre><code>    &gt;&gt;&gt; import sys
+    &gt;&gt;&gt; sys.path.append('c:/modxbmcpy')
+</code></pre>
+
+<ul>
+<li>Create and install an importer instance</li>
+</ul>
+
+<pre><code>    &gt;&gt;&gt; import KodiScriptImporter as ksi
+    &gt;&gt;&gt; importer = ksi.KodiScriptImporter()       # For Win x86 users. See module for details
+    &gt;&gt;&gt; importer.install()                        # Installed as a metha path importer
+</code></pre>
+
+<ul>
+<li>Verify the installation (optional)<br>
+</li>
+</ul>
+
+<pre><code>    &gt;&gt;&gt; import xbmc
+    &gt;&gt;&gt; xbmc.translatePath(**'special://home'**)
+</code></pre>
+
+<ul>
+<li>If you have metahandler installed in your system you can try this:</li>
+</ul>
+
+<pre><code>    &gt;&gt;&gt; import metahandler
+    &gt;&gt;&gt; from metahandler import metahandlers
+    &gt;&gt;&gt; md = metahandlers.MetaData()
+    &gt;&gt;&gt; md.get_meta('movie', 'mad max fury road', year='2015')
+</code></pre>
+
+<ul>
+<li>You will get something like this:</li>
+</ul>
+
+<p>{'rating': 8.2, 'year': 2015, 'duration': u'7200', 
+'plot': u"An apocalyptic story set in the furthest reaches of our planet, in a stark desert landscape where humanity is broken, and 
+          most everyone is crazed fighting for the necessities of life. Within this world ...", 
+'votes': u'370,371', 'title': 'mad max fury road', 'tagline': u'What a Lovely Day.', 
+'writer': u'George Miller, Brendan McCarthy, Nick Lathouris', 'imgs_prepacked': u'false', 
+'backdrop_url': u'<a href="http://image.tmdb.org/t/p/original/tbhdm8UJAb4ViCTsulYFL3lxMCd.jpg">http://image.tmdb.org/t/p/original/tbhdm8UJAb4ViCTsulYFL3lxMCd.jpg</a>', 'tmdb_id': u'76341', 
+'cover_url': u'<a href="http://image.tmdb.org/t/p/w342/kqjL17yufvn9OVLyXYpvtyrFfak.jpg">http://image.tmdb.org/t/p/w342/kqjL17yufvn9OVLyXYpvtyrFfak.jpg</a>', 'imdb_id': u'tt1392190', 
+'director': u'George Miller', 'studio': u'', 'genre': u'Thriller / Action / Adventure', 'thumb_url': u'', 'overlay': 6, 
+'premiered': u'2015-05-15', 
+'cast': [(u'Tom Hardy', u'Max Rockatansky'), (u'Charlize Theron', u'Imperator Furiosa'), ...], 
+'mpaa': u'R', 'playcount': 0, 'trailer_url': u'2h6IKpgFixg', 
+'trailer': u'plugin://plugin.video.youtube/?action=play_video&amp;videoid=2h6IKpgFixg'}</p>
+
+<h2>
+<a id="kodiserver-setup" class="anchor" href="#kodiserver-setup" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>KodiServer Setup</h2>
+
+<ul>
+<li>Check the importer set up for your system</li>
+<li>In an interactive session</li>
+</ul>
+
+<pre><code>    &gt;&gt;&gt; import sys
+    &gt;&gt;&gt; sys.path.append('c:/modxbmcpy')     # c:/modxbmcpy is the location of the project xbmctopython in your system
+    &gt;&gt;&gt; import KodiServer as ks
+    &gt;&gt;&gt; httpd = ks.runServer()              # runServer has the same parameters as KodiScriptImporter
+                                            # For Win x86 users. See KodiScriptImporter for details
+</code></pre>
+
+<ul>
+<li>Now you have your default webbrowser open in the address localhost:5000. The browser must show all your installed addons (video, audio, image, executable)</li>
+<li><p>Click the Addon that you want to test. In this point the image and executable addons is probably that fail, especially showing the media,  because the widgets define in xbmcgui are not ported yet.</p></li>
+<li><p>If you want to stop the server:</p></li>
+</ul>
+
+<pre><code>    &gt;&gt;&gt; httpd.shutdown()         # Stop the server
+    &gt;&gt;&gt; httpd.server_close()     # Close the socket in poort 5000
+</code></pre>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/pybquillast/xbmctopython">Xbmctopython</a> is maintained by <a href="https://github.com/pybquillast">pybquillast</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
