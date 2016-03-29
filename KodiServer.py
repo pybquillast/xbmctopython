@@ -148,6 +148,7 @@ class KodiServer(ksi.Runner):
 
         body = ''
         for atype in ['video', 'audio', 'image', 'executable']:
+            if atype not in kdAddon.keys(): continue
             body += '<h2 style="clear:left">%s Addons</h2>' % (atype.upper())
             for addonId in sorted(kdAddon[atype]):
                 kwargs = {'handle':0, 'isFolder':True, 'totalItems':0}
