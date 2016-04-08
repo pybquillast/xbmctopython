@@ -30,10 +30,14 @@ class Addon(object):
             posFin = sys.argv[0].find('/', posIni)
             addonId = sys.argv[0][posIni:posFin]
             addonId = kwargs.get('id',addonId)
-        pathDir = xbmc.translatePath('special://home/addons/' + addonId)
-        addonXmlFile = os.path.join(pathDir, 'addon.xml')
-        if  not os.path.exists(addonXmlFile): return False
+        for specialPath in ['special://home/addons/', 'special://xbmc/addons/']:
+            fullname = os.path.join(specialPath, addonId, 'addon.xml')
+            fullname = xbmc.translatePath(fullname)
+            if os.path.exists(fullname): break
+        else:
+            return False
         inst = object.__new__(cls, *args, **kwargs)
+        inst.addonPath = os.path.join(specialPath, addonId)
         return inst
 
     def __init__(self, *args, **kwargs):
@@ -55,6 +59,17 @@ class Addon(object):
             addonId = sys.argv[0][posIni:posFin]
             self.addonId = kwargs.get('id',None) or addonId
 
+    def _parseXml(self, settingXmlFile):
+        try:
+            root = ET.parse(settingXmlFile).getroot()
+        except:  # ParseError
+            from xml.sax.saxutils import quoteattr
+            with open(settingXmlFile, 'r') as f:
+                content = f.read()
+                content = re.sub(r'(?<==)(["\'])(.*?)\1', lambda x: quoteattr(x.group(2)), content)
+            root = ET.fromstring(content)
+        return root
+
     def getAddonInfo(self, infoId):
         """
          --Returns the value of an addon property as a string.
@@ -64,7 +79,7 @@ class Addon(object):
             - version = self.Addon.getAddonInfo('version')
         """
         infoId = infoId.lower()
-        pathDir = xbmc.translatePath('special://home/addons/' + self.addonId)
+        pathDir = xbmc.translatePath(self.addonPath)
         if not os.path.exists(pathDir):
             xbmc.log('The path ' + pathDir + 'for addon ' + self.addonId + 'dosen\'t exists', xbmc.LOGFATAL)
             return ''
@@ -77,37 +92,38 @@ class Addon(object):
 
         addonXmlFile = os.path.join(pathDir, 'addon.xml')
         if  not os.path.exists(addonXmlFile): return None
+
         if infoId == 'author': infoId = 'provider-name'
         attributes = ['id', 'version', 'name', 'provider-name']
+        root = self._parseXml(addonXmlFile)
+        if infoId in attributes: return root.attrib.get(infoId, None)
+
+        if infoId == 'type': infoId = 'point'
+        if infoId in ['point', 'library']:
+            for extension in root.iter('extension'):
+                if 'library' not in extension.attrib: continue
+                ret = extension.attrib.get(infoId, None)
+                break
+            else:
+                ret = None
+            return ret
+
         metadata = ['summary', 'description', 'disclaimer', 'platform',
                     'supportedcontent', 'language', 'license', 'forum',
                     'website', 'source', 'email']
-        with open(addonXmlFile, 'r') as xmlFile:
-            xmlContent = xmlFile.read()
-        xmlDom = minidom.parseString(xmlContent)
-        if infoId in attributes:
-            heading = xmlDom.getElementsByTagName('addon')
-            heading = dict(heading[0].attributes.items())
-            return heading.get(infoId, None)
-        elif infoId in ['type', 'library']:
-            if infoId == 'type': infoId = 'point'
-            heading = xmlDom.getElementsByTagName('extension')
-            heading = dict(heading[0].attributes.items())
-            return heading.get(infoId, None)
-        elif infoId in metadata:
-            metadataInfo = xmlDom.getElementsByTagName(infoId)
-            if len(metadataInfo):
-                return metadataInfo[0].childNodes[0].data
+
+        if infoId in metadata:
+            metadataInfo = root.find('./extension/{}'.format(infoId))
+            if metadataInfo: return metadataInfo.text
             return ''
-        elif infoId == 'requires':
-            requiresInfo = xmlDom.getElementsByTagName('import')
+
+        if infoId == 'requires':
             modList = []
-            if requiresInfo:
-                for modToImport in requiresInfo:
-                    modAttr = dict(modToImport.attributes.items())
-                    modList.append(modAttr['addon'])
+            for animp in root.findall('./requires/import'):
+                modList.append(animp.attrib)
             return modList
-        elif infoId == 'stars': return '0'
+
+        if infoId == 'stars': return '0'
 
     def getLocalizedString(self, stringId):
         """
@@ -117,11 +133,11 @@ class Addon(object):
             - locstr = self.Addon.getLocalizedString(32000)
         """
         if not isinstance(stringId, int): raise Exception('an integer is required')
-        langPath = 'special://home/addons/' + self.addonId + '/resources/language/English'
+        langPath = self.addonPath + '/resources/language/English'
         langPath = xbmc.translatePath(langPath)
         if os.path.exists(os.path.join(langPath, 'strings.xml')):
             langPath = os.path.join(langPath, 'strings.xml')
-            root = ET.parse(langPath).getroot()
+            root = self._parseXml(langPath)
             srchStr = './/string[@id="%s"]' % (stringId)
             element = root.find(srchStr)
             if element is not None: return element.text
@@ -142,13 +158,15 @@ class Addon(object):
         example:
             - apikey = self.Addon.getSetting('apikey')
         """
-        settingFiles = [('value', 'special://profile/addon_data/{0}/{1}'),
-                        ('default', 'special://home/addons/{0}/resources/{1}')]
+        home = self.addonPath
+        profile = os.path.dirname(os.path.dirname(home)) + '/userdata'
+        settingFiles = [('value', profile + '/addon_data/' + self.addonId + '/settings.xml'),
+                        ('default', home + '/resources/settings.xml')]
 
         for attrId, settingXmlFile in settingFiles:
-            settingXmlFile = xbmc.translatePath(settingXmlFile.format(self.addonId, 'settings.xml'))
+            settingXmlFile = xbmc.translatePath(settingXmlFile)
             if not os.path.exists(settingXmlFile): continue
-            root = ET.parse(settingXmlFile).getroot()
+            root = self._parseXml(settingXmlFile)
             srchStr = './/setting[@id="' + stringId + '"]'
             element = root.find(srchStr)
             if element is not None: return element.get(attrId)

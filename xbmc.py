@@ -1173,6 +1173,7 @@ def getSkinDir():
     example:
         - skindir = xbmc.getSkinDir()
     """
+    return 'skin.confluence'
     pass
 
 def getSupportedMedia(media):
@@ -1341,7 +1342,7 @@ def translatePath(path):
                        'special://musicplaylists':'special://profile/playlists/music',
                        'special://videoplaylists':'special://profile/playlists/video',
                        'special://logpath':'special://home',
-                       'special://skin':'special://xbmc/addons/skin.confluence'
+                       'special://skin':'special://xbmc/addons'
                        }
 
     if sys.platform[:3] == 'win':
