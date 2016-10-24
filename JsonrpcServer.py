@@ -1,8 +1,9 @@
 import os
-import sqlite3
 import pickle
 import pprint
-import xbmcaddon
+import sqlite3
+
+from KodiAddonIDE.KodiStubs.xbmcModules import xbmcaddon
 
 ''' Agregate Functions'''
 

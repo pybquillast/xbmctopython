@@ -13,12 +13,14 @@ __version__ = '2.0'
 
 
 '''
+import os
+import sys
 import Tkinter as tk
 import tkSimpleDialog
 import tkMessageBox
 import tkFileDialog
-import os
 import xbmc
+import controlXml
 
 OUTPUT_TYPE = 'tkinter'             # Set this variable to 'tkinter' para ejecutar bajo tkinter
 # OUTPUT_TYPE = 'console'             # Set this variable to 'tkinter' para ejecutar bajo tkinter
@@ -453,6 +455,9 @@ class Window(object):
             ControlRadioButton
             ControlProgress
         """
+        if not isinstance(control, Control): raise TypeError('The supplied argument is not a Control type')
+        if control.winfo_ismapped(): raise ReferenceError('Control is already used in another window')
+
         pass
 
     def addControls(self, controls):
@@ -464,6 +469,9 @@ class Window(object):
         - ReferenceError, if control is already used in another window
         - RuntimeError, should not happen :-)
         """
+        if isinstance(controls, list): raise TypeError('Supplied argument is not of list type')
+        for control in controls:
+            self.addControl(control)
         pass
 
     def getControl(self, controlId):
@@ -859,7 +867,7 @@ class Control(object):
         example:
         - id = self.button.getId()
         """
-        return int
+        return None
 
     def getPosition(self):
         """
