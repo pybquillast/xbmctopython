@@ -5,21 +5,23 @@ Created on 29/03/2015
 @author: pybquillast
 
 '''
-import os
-import urlparse
-import hashlib
-import webbrowser
 import StringIO
+import hashlib
+import os
 import re
-from functools import partial
 import threading
+import urlparse
+import webbrowser
+from functools import partial
+from wsgiref.simple_server import make_server
 
+# from KodiAddonIDE.KodiStubs.KodiImporter import KodiScriptImporter as ksi
 import KodiScriptImporter as ksi
 
-from wsgiref.simple_server import make_server
 
 def getFile(url):
     import xbmc
+    # from KodiAddonIDE.KodiStubs.xbmcModules import xbmc
     basePath, queryStr = url.split('/?', 1)
     query = urlparse.parse_qs(queryStr)
     fname, key = query['fname'][0], query['key'][0]
@@ -38,7 +40,6 @@ def getFile(url):
                        '</center><br></td></tr></table><br><center>kodiserver</center></td></tr></table></body></html>'
         answ['Content-Type'] = 'text/html'
     return answ
-
 
 def application (environ, start_response, server=None):
     url = environ.get('PATH_INFO', '')[1:] or '/'
@@ -123,7 +124,9 @@ class KodiServer(ksi.Runner):
         ksi.Runner.__init__(self, importer, self.stEd)
 
     def kodiAddons(self):
-        import xbmc, xbmcaddon, xbmcgui
+        import xbmcaddon
+        import xbmcgui
+        import xbmc
         pathDir = xbmc.translatePath('special://home/addons')
         kdAddon = {}
         for addon in os.walk(pathDir).next()[1]:
@@ -165,7 +168,6 @@ class KodiServer(ksi.Runner):
             body += self.fillListBox(content)
             self.answ = []
         return self.htmlHead + body + self.htmlTail
-
 
     def runAddon(self, url):
         if url == '/': return self.kodiAddons()
@@ -222,7 +224,7 @@ class KodiServer(ksi.Runner):
             htmlPage += self.htmlStr.format(itemUrl, itemIcon, itemLabel)
         return htmlPage + '</div>'
 
-def runServer(kodi = '', kodi_home = ''):
+def runServer(kodi = '', kodi_home = '', startBrowser=False):
     importer = ksi.KodiScriptImporter(kodi, kodi_home)
     importer.install(True)
     kodiSrv = KodiServer(importer)
@@ -235,11 +237,12 @@ def runServer(kodi = '', kodi_home = ''):
         wsgiApp  # The application object name, in this case a function
     )
     srvThread = threading.Thread(target=httpd.serve_forever)
-    webbrowser.open('http://{}:{}'.format(*server_address))
+    if startBrowser:
+        webbrowser.open('http://{}:{}'.format(*server_address))
     srvThread.start()
     return httpd
 
 if __name__ == '__main__':
-    runServer()
+    runServer(startBrowser=True)
     pass
 

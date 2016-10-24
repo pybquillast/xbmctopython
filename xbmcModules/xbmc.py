@@ -13,10 +13,11 @@ __version__ = '2.14.0'
 
 
 '''
-import sys
 import os
 import re
+import sys
 import time
+
 import xbmcgui
 
 # variables

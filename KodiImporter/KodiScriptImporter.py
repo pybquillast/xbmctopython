@@ -7,15 +7,14 @@ Created on 9/05/2014
 
 '''
 
-import sys
-import os
 import imp
 import logging
-import re
-import urllib
-import urlparse
+import os
+import sys
 import threading
 import traceback
+import urllib
+import urlparse
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -58,7 +57,7 @@ class KodiScriptImporter:
         self.addonDir = None
         self.setLogger()
         self.setPaths(kodi, kodi_home)
-        self.initRootPaths()
+        # self.initRootPaths()
 
     def setLogger(self, strLogger=None):
         self.logger = logging.getLogger('%s.importer' % (__name__))
@@ -75,8 +74,8 @@ class KodiScriptImporter:
 
     def setPaths(self, kodi, kodi_home):
         baseDirectory = os.path.dirname(__file__)
-        if os.path.exists(os.path.join(os.path.dirname(baseDirectory), 'xbmcStubs')):
-            baseDirectory = os.path.join(os.path.dirname(baseDirectory), 'xbmcStubs')
+        if os.path.exists(os.path.join(os.path.dirname(baseDirectory), 'xbmcModules')):
+            baseDirectory = os.path.join(os.path.dirname(baseDirectory), 'xbmcModules')
         self.KODI_STUBS = baseDirectory
 
         if sys.platform[:3] == 'win':
@@ -100,6 +99,7 @@ class KodiScriptImporter:
                 msg = stubmod + '.py' + " doesn't exits"
                 self.log(msg, logging.CRITICAL)
                 raise ImportError(msg)
+        self.rootPaths = [self.KODI_STUBS]
 
     def setAddonDir(self, addonDir):
         if self.addonDir:
@@ -117,8 +117,8 @@ class KodiScriptImporter:
         pass
 
     def initRootPaths(self):
+        # xbmcaddon = self.load_module('xbmcaddon')
         import xbmcaddon
-        self.rootPaths = [self.KODI_STUBS]
         moduleAddons = self.listAddonsType('xbmc.python.module')
         for addonId in moduleAddons:
             addon = xbmcaddon.Addon(addonId)
@@ -157,7 +157,6 @@ class KodiScriptImporter:
         self.log(msg, logging.DEBUG)
         self.nullstack.add(fullname)
         return
-
 
     def get_code(self,fullname):
         src = self.get_source(fullname)
@@ -264,7 +263,11 @@ class KodiScriptImporter:
             sys.path_hooks.append(trnClass)
             sys.path.insert(0, self.pathprefix)
             self.log('Installed as Path Hook', logging.INFO)
+
+        self.initRootPaths()
+
         import xbmc
+        # from KodiAddonIDE.KodiStubs.xbmcModules import xbmc
         KODI = os.path.dirname(self.KODI)
         self.log('Mapping "special://xbmc" to %s' % KODI, logging.INFO)
         xbmc.special_xbmc = KODI
@@ -335,7 +338,9 @@ class KodiScriptImporter:
             library = addon.getAddonInfo('library')
             path = addon.getAddonInfo('path')
             addonFile = os.path.join(path, library)
-            srvThread = threading.Thread(target=execfile, args = (addonFile, sys.modules['__main__'].__dict__))
+            srvThread = threading.Thread(target=self.enableService, args = (serviceId, addonFile))
+            # srvThread = execfile(addonFile, sys.modules['__main__'].__dict__)
+            if not srvThread: continue
             self.services[serviceId] = srvThread
             srvThread.setDaemon(True)
             srvThread.setName('kodiservice_' + '_'.join(serviceId.split('.')[2:]))
@@ -352,7 +357,32 @@ class KodiScriptImporter:
                 if self.addonDir: self.rootPaths.insert(-1, alib)
                 else: self.rootPaths.append(alib)
 
+    def enableService(self, serviceId, addonFile):
+        import xbmc
+        try:
+            srvThread = execfile(addonFile, sys.modules['__main__'].__dict__)
+        except Exception as e:
+            srvThread = None
+            msg, loglevel = str(e), xbmc.LOGERROR
+        else:
+            msg = 'Service %s, succesfully loaded from %s'
+            msg, loglevel = msg % (serviceId, addonFile), xbmc.LOGDEBUG
+        finally:
+            xbmc.log(msg, loglevel)
+            if loglevel == xbmc.LOGERROR:
+                msg = traceback.format_exc()
+                xbmc.log(msg, xbmc.LOGERROR)
+        return srvThread
 
+
+
+def wrapperfor(module, object):
+        def wrapper(f):
+            def wrapped(*args, **kwargs):
+                return f(*args, **kwargs)
+            wrapped.rdftag = module + '.' + object
+            return wrapped
+        return wrapper
 
 class Runner:
 
@@ -385,49 +415,48 @@ class Runner:
         theGlobals["__name__"] = "__main__"
         self.theGlobals = theGlobals
 
-    def mock(module, object):
-        def wrapper(f):
-            def wrapped(*args, **kwargs):
-                return f(*args, **kwargs)
-            wrapped.rdftag = module + '.' + object
-            return wrapped
-        return wrapper
-
     def redefineXbmcMethods(self, theGlobals):
         for method_name in dir(self):
             method = getattr(self, method_name)
             if not hasattr(method, 'rdftag'): continue
             module, obj_name = method.rdftag.split('.', 1)
-            setattr(theGlobals[module], obj_name, method)
+            toWrap = getattr(theGlobals[module], obj_name)
+            setattr(theGlobals[module], obj_name, method(toWrap))
         # theGlobals['xbmc'].log = self.log
         # theGlobals['xbmcplugin'].setResolvedUrl = self.setResolvedUrl
         # theGlobals['xbmcplugin'].addDirectoryItem = self.addDirectoryItem
         # theGlobals['xbmcplugin'].endOfDirectory = self.endOfDirectory
 
-    @mock('xbmc', 'log')
-    def log(self, msg, level = 2):
-        logLst = ['DEBUG', 'INFO', 'NOTICE', 'WARNING',
-               'ERROR', 'SEVERE', 'FATAL', 'NONE']
-        if self.xbmcLoglevel < 0: return
-        if self.xbmcLoglevel == 0 and level in ['DEBUG', 'INFO']: return
-        msg = '{0:>9s}:{1}'.format(logLst[level], msg)
-        self.logger.log(level+1, msg)
+    @wrapperfor('xbmc', 'log')
+    def log(self, func):
+        def wrapper(msg, level = 2):
+            logLst = ['DEBUG', 'INFO', 'NOTICE', 'WARNING',
+                   'ERROR', 'SEVERE', 'FATAL', 'NONE']
+            if self.xbmcLoglevel < 0: return
+            if self.xbmcLoglevel == 0 and level in ['DEBUG', 'INFO']: return
+            msg = '{0:>9s}:{1}'.format(logLst[level], msg)
+            self.logger.log(level+1, msg)
+        return wrapper
 
-    @mock('xbmcplugin', 'setResolvedUrl')
-    def setResolvedUrl(self, handle, succeeded, listitem):
-        if not succeeded: return
-        self.answ = (handle, False, listitem)
-        pass
+    @wrapperfor('xbmcplugin', 'setResolvedUrl')
+    def setResolverUrl(self, func):
+        def wrapper(handle, succeeded, listitem):
+            if not succeeded: return
+            self.answ = (handle, False, listitem)
+        return wrapper
 
-    @mock('xbmcplugin', 'addDirectoryItem')
-    def addDirectoryItem(self, handle, url, listitem, isFolder = False, totalItems = 0):
-        self.answ.append((handle, url, listitem, isFolder, totalItems))
+    @wrapperfor('xbmcplugin', 'addDirectoryItem')
+    def addDirectoryItem(self, func):
+        def wrapper(handle, url, listitem, isFolder = False, totalItems = 0):
+            self.answ.append((handle, url, listitem, isFolder, totalItems))
+        return wrapper
 
-    @mock('xbmcplugin', 'endOfDirectory')
-    def endOfDirectory(self, handle, succeeded = True, updateListing = False, cacheToDisc = True):
-        if not succeeded: return
-        self.answ = (handle, True, self.answ)
-        pass
+    @wrapperfor('xbmcplugin', 'endOfDirectory')
+    def endOfDirectory(self, func):
+        def wrapper(handle, succeeded = True, updateListing = False, cacheToDisc = True):
+            if not succeeded: return
+            self.answ = (handle, True, self.answ)
+        return wrapper
 
     def run(self, url):
         self.initGlobals()
@@ -444,9 +473,9 @@ class Runner:
         try:
             exec(sourceCode, self.theGlobals)
         except Exception as e:
-            self.log(str(e), xbmc.LOGERROR)
+            xbmc.log(str(e), xbmc.LOGERROR)
             msg = traceback.format_exc()
-            self.log(msg, xbmc.LOGERROR)
+            xbmc.log(msg, xbmc.LOGERROR)
             self.answ = None
         return self.answ
 
@@ -462,12 +491,15 @@ class Runner:
 
 
 if __name__ == "__main__":
-    from threading import Thread
-    import pprint
     meta_path = True
     importador = KodiScriptImporter()
     importador.install(meta_path)
-    arunner = Runner(importador)
+
+    # import urlresolver
+    # webMedia = urlresolver.HostedMediaFile(host='youtube.com', media_id='-j4lolWgD6Q')
+    # url = webMedia.resolve()
+
+    # arunner = Runner(importador)
     # pprint.pprint( importador.lstModules())
     # import SimpleDownloader
     # import requests
@@ -481,11 +513,12 @@ if __name__ == "__main__":
     #
     # print urlresolver.resolve('https://www.youtube.com/watch?v=EiOglTERPEo')
 
-    print importador.getServicesFor('script.module.simple.downloader')
-    importador.initService('script.module.simple.downloader')
+    # print importador.getServicesFor('script.module.simple.downloader')
+    # importador.initService('script.module.simple.downloader')
     # a, b, c = arunner.run('plugin://plugin.video.youtube/?action=play_video&videoid=EiOglTERPEo')
     # url = c.getProperty('path')
-    url = 'https://r4---sn-buu-hp5l.googlevideo.com/videoplayback?sparams=dur%2Cid%2Cinitcwndbps%2Cip%2Cipbits%2Citag%2Clmt%2Cmime%2Cmm%2Cmn%2Cms%2Cmv%2Cpl%2Cratebypass%2Crequiressl%2Csource%2Cupn%2Cexpire&ip=181.49.95.60&mn=sn-buu-hp5l&sver=3&id=o-AApZxS37lQbi16dRPKNx7d3ErIMj8_z6uk0NkDFd9V56&mm=31&expire=1460025286&ms=au&mt=1460003528&mv=m&pl=22&upn=99Dq5s58WAs&itag=22&source=youtube&signature=61241BFA7BD5528EA1F4F63C8D2583AFE49FF435.98F74D1CF12D7047A3C4D00D9F776509B96DF3BD&requiressl=yes&mime=video%2Fmp4&dur=2811.750&ipbits=0&initcwndbps=432500&fexp=9416891%2C9418642%2C9419452%2C9420452%2C9422596%2C9423348%2C9423794%2C9426927%2C9427902%2C9428398%2C9431117%2C9431841%2C9431849%2C9432435%2C9433115%2C9433294%2C9433463&key=yt6&lmt=1429169029996832&ratebypass=yes'
+    # url = 'https://r4---sn-buu-hp5l.googlevideo.com/videoplayback?sparams=dur%2Cid%2Cinitcwndbps%2Cip%2Cipbits%2Citag%2Clmt%2Cmime%2Cmm%2Cmn%2Cms%2Cmv%2Cpl%2Cratebypass%2Crequiressl%2Csource%2Cupn%2Cexpire&ip=181.49.95.60&mn=sn-buu-hp5l&sver=3&id=o-AApZxS37lQbi16dRPKNx7d3ErIMj8_z6uk0NkDFd9V56&mm=31&expire=1460025286&ms=au&mt=1460003528&mv=m&pl=22&upn=99Dq5s58WAs&itag=22&source=youtube&signature=61241BFA7BD5528EA1F4F63C8D2583AFE49FF435.98F74D1CF12D7047A3C4D00D9F776509B96DF3BD&requiressl=yes&mime=video%2Fmp4&dur=2811.750&ipbits=0&initcwndbps=432500&fexp=9416891%2C9418642%2C9419452%2C9420452%2C9422596%2C9423348%2C9423794%2C9426927%2C9427902%2C9428398%2C9431117%2C9431841%2C9431849%2C9432435%2C9433115%2C9433294%2C9433463&key=yt6&lmt=1429169029996832&ratebypass=yes'
+    url = r'file:///C:/Users/Alex%20Montes%20Barrios/Pictures/Friends/Fotos%20de%20KIKI/224302_10150240242472578_5694922_n.jpg'
     filename = 'downloadertest.mp4'
     params = {'url':url,
               'download_path':'c:/testFiles/downloads'

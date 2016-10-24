@@ -14,12 +14,13 @@ __version__ = '2.14.0'
 
 '''
 
-import sys
 import os
-import xbmc
-import xml.etree.ElementTree as ET
-import  xml.dom.minidom as minidom
 import re
+import sys
+import xml.etree.ElementTree as ET
+
+import xbmc
+
 
 class Addon(object):
     def __new__(cls, *args, **kwargs):

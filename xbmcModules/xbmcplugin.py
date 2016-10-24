@@ -10,6 +10,7 @@ __credits__ = 'Team XBMC'
 
 '''
 import sys
+
 import xbmcaddon
 
 _menuSel = 0

@@ -13,14 +13,13 @@ __version__ = '2.0'
 
 
 '''
-import os
-import sys
 import Tkinter as tk
-import tkSimpleDialog
-import tkMessageBox
+import os
 import tkFileDialog
+import tkMessageBox
+import tkSimpleDialog
+
 import xbmc
-import controlXml
 
 OUTPUT_TYPE = 'tkinter'             # Set this variable to 'tkinter' para ejecutar bajo tkinter
 # OUTPUT_TYPE = 'console'             # Set this variable to 'tkinter' para ejecutar bajo tkinter
