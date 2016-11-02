@@ -19,6 +19,14 @@ import urlparse
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+def wrapperfor(module, object):
+        def wrapper(f):
+            def wrapped(*args, **kwargs):
+                return f(*args, **kwargs)
+            wrapped.rdftag = module + '.' + object
+            return wrapped
+        return wrapper
+
 class KodiScriptImporter:
 
     KODI_STUBS = ''
@@ -278,7 +286,6 @@ class KodiScriptImporter:
         for serviceId in self.listAddonsType('xbmc.service'):
             self.initService(serviceId)
 
-
     def listAddonsType(self, atype):
         import xbmcaddon
         answ = []
@@ -374,16 +381,6 @@ class KodiScriptImporter:
                 xbmc.log(msg, xbmc.LOGERROR)
         return srvThread
 
-
-
-def wrapperfor(module, object):
-        def wrapper(f):
-            def wrapped(*args, **kwargs):
-                return f(*args, **kwargs)
-            wrapped.rdftag = module + '.' + object
-            return wrapped
-        return wrapper
-
 class Runner:
 
     toRedef = {}
@@ -406,11 +403,14 @@ class Runner:
         self.logger.setLevel(xbmc.LOGDEBUG + 1)
 
     def initGlobals(self):
-        self.answ = []
+        self.answ = None
         theGlobals = {}
-        exec 'import sys' in theGlobals
+        toExec = ['import sys',
+                  'import os',
+                  'import xbmc, xbmcgui, xbmcplugin, xbmcaddon, xbmcvfs']
+        for statement in toExec:
+            exec statement in theGlobals
         theGlobals['sys'].argv = [0,0,0]
-        exec 'import xbmc, xbmcgui, xbmcplugin, xbmcaddon, xbmcvfs' in theGlobals
         self.redefineXbmcMethods(theGlobals)
         theGlobals["__name__"] = "__main__"
         self.theGlobals = theGlobals
@@ -419,13 +419,13 @@ class Runner:
         for method_name in dir(self):
             method = getattr(self, method_name)
             if not hasattr(method, 'rdftag'): continue
-            module, obj_name = method.rdftag.split('.', 1)
-            toWrap = getattr(theGlobals[module], obj_name)
-            setattr(theGlobals[module], obj_name, method(toWrap))
-        # theGlobals['xbmc'].log = self.log
-        # theGlobals['xbmcplugin'].setResolvedUrl = self.setResolvedUrl
-        # theGlobals['xbmcplugin'].addDirectoryItem = self.addDirectoryItem
-        # theGlobals['xbmcplugin'].endOfDirectory = self.endOfDirectory
+            module, obj_name = method.rdftag.rsplit('.', 1)
+            module = module.split('.')
+            base = theGlobals[module[0]]
+            for elem in module[1:]:
+                base = getattr(base, elem)
+            toWrap = getattr(base, obj_name)
+            setattr(base, obj_name, method(toWrap))
 
     @wrapperfor('xbmc', 'log')
     def log(self, func):
@@ -448,6 +448,7 @@ class Runner:
     @wrapperfor('xbmcplugin', 'addDirectoryItem')
     def addDirectoryItem(self, func):
         def wrapper(handle, url, listitem, isFolder = False, totalItems = 0):
+            self.answ = self.answ or []
             self.answ.append((handle, url, listitem, isFolder, totalItems))
         return wrapper
 
@@ -459,17 +460,20 @@ class Runner:
         return wrapper
 
     def run(self, url):
-        self.initGlobals()
         xbmc = self.theGlobals['xbmc']
         urlScheme = urlparse.urlparse(url)
         if urlScheme.scheme != 'plugin': return             # Plugin diferente
         pluginId, urlArgs = urllib.splitquery(url)
         self.theGlobals['sys'].argv = [pluginId, self.theGlobals['sys'].argv[1] + 1, '?' + (urlArgs or '')]
-        actualID = urlScheme.netloc
+        self.addonID = actualID = urlScheme.netloc
         addonDir = xbmc.translatePath('special://home/addons/' + actualID)
-        self.addonID = actualID
-        sourceCode = self.getCompiledAddonSource(actualID)
-        self.importer.setAddonDir(addonDir)
+        if addonDir.startswith('vrt:%s' % os.path.sep):
+            self.vrtDisk.installPathHook()
+            sys.path.append(addonDir)
+            sourceCode = self.getVrtDiskAddonSource()
+        else:
+            sourceCode = self.getCompiledAddonSource(actualID)
+            self.importer.setAddonDir(addonDir)
         try:
             exec(sourceCode, self.theGlobals)
         except Exception as e:
@@ -478,6 +482,14 @@ class Runner:
             xbmc.log(msg, xbmc.LOGERROR)
             self.answ = None
         return self.answ
+
+    def getVrtDiskAddonSource(self):
+        libraryFile = self.vrtDisk.addon_library_path()
+        libraryPath = 'vrt:/%s/%s' % (self.vrtDisk.addon_id(), libraryFile)
+        addonSource = self.vrtDisk.getPathContent(libraryPath)
+        with open(r'c:/testFiles/default.py', 'w') as f:
+            f.write(addonSource.encode('utf-8'))
+        return compile(addonSource.encode('utf-8'), r'c:/testFiles/default.py', 'exec')
 
     def getCompiledAddonSource(self, addonId):
         xbmcaddon = self.theGlobals['xbmcaddon']

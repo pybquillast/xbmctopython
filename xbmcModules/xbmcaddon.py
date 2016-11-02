@@ -59,6 +59,7 @@ class Addon(object):
             posFin = sys.argv[0].find('/', posIni)
             addonId = sys.argv[0][posIni:posFin]
             self.addonId = kwargs.get('id',None) or addonId
+
     @classmethod
     def _parseXml(self, settingXmlFile):
         try:

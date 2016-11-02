@@ -289,7 +289,7 @@ class ListItem(object):
         Example:
             self.list.getSelectedItem().setInfo('video', { 'Genre': 'Comedy' })
         """
-        self._ItemInfo = (type, infoLabels)
+        self._properties['infolabels'] = (type, infoLabels)
 
     def setLabel(self, label):
         """
