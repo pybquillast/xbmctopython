@@ -72,6 +72,11 @@ class Addon(object):
             root = ET.fromstring(content)
         return root
 
+    def _open(self, filename):
+        with open(filename, 'r') as f:
+            content = f.read()
+        return content
+
     def getAddonInfo(self, infoId):
         """
          --Returns the value of an addon property as a string.
@@ -139,19 +144,18 @@ class Addon(object):
         subPath = ['/resources/language/English', '/resources']
         for langPath in subPath:
             langPath = xbmc.translatePath(self.addonPath + langPath)
-            if os.path.exists(os.path.join(langPath, 'strings.xml')):
+            if os.path.exists(os.path.join(langPath, 'strings.po')):
+                langPath = os.path.join(langPath, 'strings.po')
+                langStr = self._open(langPath)
+                pattern = r'msgctxt "#{}"\nmsgid "(?P<msgid>[^"]*)"\nmsgstr "(?P<msgstr>[^"]*)"'.format(stringId)
+                match = re.search(pattern, langStr)
+                if match: return match.group('msgstr') or match.group('msgid')
+            elif os.path.exists(os.path.join(langPath, 'strings.xml')):
                 langPath = os.path.join(langPath, 'strings.xml')
                 root = self._parseXml(langPath)
                 srchStr = './/string[@id="%s"]' % (stringId)
                 element = root.find(srchStr)
                 if element is not None: return element.text
-            elif os.path.exists(os.path.join(langPath, 'strings.po')):
-                langPath = os.path.join(langPath, 'strings.po')
-                with open(langPath, 'r') as langFile:
-                    langStr = langFile.read()
-                pattern = r'msgctxt "#{}"\nmsgid "(?P<msgid>[^"]*)"\nmsgstr "(?P<msgstr>[^"]*)"'.format(stringId)
-                match = re.search(pattern, langStr)
-                if match: return match.group('msgid')
         else:
             return ''
         # raise Exception('There is no string asociated with id=' + str(stringId))

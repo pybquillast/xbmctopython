@@ -65,7 +65,6 @@ class KodiScriptImporter:
         self.addonDir = None
         self.setLogger()
         self.setPaths(kodi, kodi_home)
-        # self.initRootPaths()
 
     def setLogger(self, strLogger=None):
         self.logger = logging.getLogger('%s.importer' % (__name__))
@@ -425,7 +424,8 @@ class Runner:
             for elem in module[1:]:
                 base = getattr(base, elem)
             toWrap = getattr(base, obj_name)
-            setattr(base, obj_name, method(toWrap))
+            if toWrap.__name__ != 'wrapper':
+                setattr(base, obj_name, method(toWrap))
 
     @wrapperfor('xbmc', 'log')
     def log(self, func):
