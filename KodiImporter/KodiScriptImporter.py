@@ -55,6 +55,7 @@ class KodiScriptImporter:
         """
         self.isInstalled = False
         self.logFilter = 0
+        self.redefBuiltins = {}
         self.services = {}
         self.stack = []
         self.indent = ''
@@ -218,6 +219,7 @@ class KodiScriptImporter:
             self.indent = fullkey.find(fullname)* ' '
             raise ImportError(msg)
         else:
+            mod.__dict__.update(self.redefBuiltins)
             if self.stack[0] == fullname:
                 self.log('IMPORT %s successful' % (fullname), logging.INFO)
                 if self.stack[1:]:
@@ -469,7 +471,7 @@ class Runner:
         addonDir = xbmc.translatePath('special://home/addons/' + actualID)
         if addonDir.startswith('vrt:%s' % os.path.sep):
             self.vrtDisk.installPathHook()
-            sys.path.append(addonDir)
+            sys.path.insert(0, addonDir)
             sourceCode = self.getVrtDiskAddonSource()
         else:
             sourceCode = self.getCompiledAddonSource(actualID)
@@ -487,9 +489,10 @@ class Runner:
         libraryFile = self.vrtDisk.addon_library_path()
         libraryPath = 'vrt:/%s/%s' % (self.vrtDisk.addon_id(), libraryFile)
         addonSource = self.vrtDisk.getPathContent(libraryPath)
-        with open(r'c:/testFiles/default.py', 'w') as f:
+        fileSource = os.path.abspath('./default.py')
+        with open(fileSource, 'w') as f:
             f.write(addonSource.encode('utf-8'))
-        return compile(addonSource.encode('utf-8'), r'c:/testFiles/default.py', 'exec')
+        return compile(addonSource.encode('utf-8'), fileSource, 'exec')
 
     def getCompiledAddonSource(self, addonId):
         xbmcaddon = self.theGlobals['xbmcaddon']

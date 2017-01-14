@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import Tkinter as tk
 import functools
 import json
@@ -6,13 +7,14 @@ import pickle
 import re
 import xml.etree.ElementTree as ET
 from collections import deque
+import urllib
 
 from xbmcModules import xbmcaddon
 
-from KodiAddonIDE.KodiStubs.xbmcModules import xbmc
+from xbmcModules import xbmc
 # import xbmcConstants
-from KodiAddonIDE.KodiStubs.fromC.Keytable import VK, NAME, lookup
-from KodiAddonIDE.KodiStubs.fromC import key as kodiKeyh, ButtonTranslator
+from fromC.Keytable import VK, NAME, lookup
+from fromC import key as kodiKeyh, ButtonTranslator
 from PIL import Image, ImageTk, ImageChops, ImageColor, ImageFont, ImageDraw
 
 TEXTURE_DIRECTORY = 'c:/testFiles/Confluence'
@@ -572,7 +574,6 @@ def mapControl(ctrPos, ctrList):
     kwargs['_params'] = _params
     return controlClass, args, kwargs, relationalTags
 
-
 def mapArgsKwargs(ctrList, nPos):
     ctrTags = ctrList[nPos]
 
@@ -719,7 +720,6 @@ class AppAction:
     def getAmount2(self):
         return self._amnt2
 
-
 class Singleton(type):
     _instances = {}
     def __call__(cls, *args, **kwargs):
@@ -850,9 +850,6 @@ class AppWindow(tk.Tk, object):
             self.unmapped.append(ctrl)
             print '\n<Unmap> ' + str(event.widget.__class__) + '\n'
             self.printEvent(event)
-
-
-
 
 class AppWindowOLD(tk.Tk, object):
     __metaclass__ = Singleton
@@ -1076,7 +1073,10 @@ def getTextSize(label, font, spacing=4):
 def getLabel(label, font, textcolor, background=None, xpos=0, ypos=0, **options):
     SPACING = 4
     align = 'left'
-    fnt = _eqTkFont(font)
+    if isinstance(font, basestring):
+        fnt = _eqTkFont(font)
+    else:
+        fnt = font
     width = options.get('width', 0)
     if options.get('haspath', False) and width:
         lblwidth = fnt.getsize(label)[0]
@@ -1111,7 +1111,7 @@ def getLabel(label, font, textcolor, background=None, xpos=0, ypos=0, **options)
 
     txt = Image.new('RGBA', (width, 10), (255, 255, 255, 0))
     d = ImageDraw.Draw(txt)
-    txtsize = d.textsize(str(label), fnt, spacing=SPACING)
+    txtsize = d.textsize(label, fnt, spacing=SPACING)
     bshadow = options.get('shadowcolor', None)
     if bshadow: txtsize = (1 + txtsize[0], 1 + txtsize[1])
 
@@ -1122,7 +1122,7 @@ def getLabel(label, font, textcolor, background=None, xpos=0, ypos=0, **options)
         colorTuple = _getThemeColour(shadowcolor)
         d.text((1, 1), label, font=fnt, fill=colorTuple, align=align, spacing=SPACING)
     colorTuple = _getThemeColour(textcolor)
-    d.text((0, 0), str(label), font=fnt, fill=colorTuple, align=align, spacing=SPACING)
+    d.text((0, 0), label, font=fnt, fill=colorTuple, align=align, spacing=SPACING)
     if options.get('angle', 0):
         angle = options['angle']
         txt = txt.rotate(angle, expand=1)
@@ -1167,6 +1167,62 @@ def _eqTkFont(fontname, res='720p', fontset='Default'):
             break
     return ImageFont.truetype(filename, size)
 
+@memoize
+def ttfFile(ttf_url):
+    filename, headers = urllib.urlretrieve(ttf_url)
+    return filename
+
+@memoize
+def ccsCharCodeMap(css_url):
+    filename, headers = urllib.urlretrieve(css_url)
+    with open(filename, 'r') as f:
+        content = f.read()
+    pattern = r'^\.(fa-[a-z-]+):before\s\{\s+content:\s"\\([^"]+)";$'
+    charcode = re.findall(pattern, content, re.MULTILINE)
+    charcode = map(lambda x: (x[0], unichr(int(x[1], 16))), charcode)
+    charcode = dict(charcode)
+    pattern = r'^((?:\.fa-[a-z-]+:before,\s)+)\.fa-[a-z-]+:before\s\{\s+content:\s"\\([a-f0-9]+)";'
+    alias = re.findall(pattern, content, re.MULTILINE)
+    pattern = r'\.(fa-[a-z-]+):before,\s'
+    alias = map(lambda x: (re.findall(pattern, x[0]), unichr(int(x[1], 16))), alias)
+    for seq, value in alias:
+        aliasMap = dict.fromkeys(seq, value)
+        charcode.update(aliasMap)
+    return charcode
+
+def getFontAwesomeIcon(charname, **optionsreq):
+    """
+    parámetros:
+    charname: nombre codigo del icono. ej. 'fa gear'
+    optionsreq: Diccionario con las siguientes opciones
+            size        : Tamaño en pixeles del icono requerido. Un entero
+                          para iconos cuadrados, o una tupla con (ancho, alto). default=24
+            color       : rgb color, rgb tuple. Default='white'
+            isPhotoImage: True for a ImageTk.PhotoImage, default=False
+    """
+    options = dict([('size', 24), ('color', 'white'), ('aspectratio','keep'),
+                    ('isPhotoImage', False)])
+    options.update(optionsreq)
+    ttf_url = 'https://cdn.rawgit.com/FortAwesome/Font-Awesome/' \
+              'master/fonts/fontawesome-webfont.ttf'
+    css_url = "https://cdn.rawgit.com/FortAwesome/Font-Awesome/" \
+              "master/css/font-awesome.css"
+    filename = ttfFile(ttf_url)
+    faMap = ccsCharCodeMap(css_url)
+    charCode = faMap.get(charname)
+    assert charCode is not None, '%s is not a define Font Awesome name' % charname
+    imgFont = ImageFont.truetype(filename, 150)
+    imageFile = getLabel(charCode, imgFont, options['color'], width=150, alignment='center', yalignment='center')
+    size = options.get('size')
+    if isinstance(size, tuple):
+        width, height = size
+    else:
+        width = height = size
+    iconImg = getTexture(imageFile, width, height, aspectratio=options['aspectratio'])
+    if options['isPhotoImage']:
+        iconImg = ImageTk.PhotoImage(iconImg)
+    return iconImg
+
 def _imageFile(imageFile):
     if not os.path.dirname(imageFile):
         imageFile = os.path.join(TEXTURE_DIRECTORY, imageFile)
@@ -1175,9 +1231,11 @@ def _imageFile(imageFile):
 
 @memoize
 def getTexture(imageFile, Width, Height, aspectratio='stretch', **options):
-    imageFile = _imageFile(imageFile)
-    if not imageFile: return None
-    im = Image.open(imageFile)
+    if isinstance(imageFile, basestring):
+        imageFile = _imageFile(imageFile)
+        if not imageFile: return None
+        imageFile = Image.open(imageFile)
+    im = imageFile
     bbox = im.getbbox()
     im = im.crop(bbox)
     iw, ih = im.size
@@ -1298,7 +1356,6 @@ def _getThemeColour(srchcolor, theme='Confluence'):
             colors = _parseXml(filename)
             color = colors.find('.//color[@name="%s"]' % srchcolor)
             if color is not None: break
-
         if color is None:
             try:
                 colorTuple = ImageColor.getrgb(srchcolor)
@@ -1389,8 +1446,6 @@ def getPosAndDim(posIn, scrResW, scrResH):
             y = scrResH - value - height/2
 
     posIn.update(dict(left=x, top=y, width=width, height=height))
-
-
 
 def getImageFromLayout(imgLayout, listItem, cache=False):
     global imgCache
@@ -1488,6 +1543,7 @@ if __name__ == '__main__':
     # imgPhoto.append(getLabel('linea1\nlinea2\nlinea3', 'WeatherTemp', 'white'))
     # imgPhoto.append(getLabel('linea con wrapmultiline true y width = 500 pero con esto es\nun salto de linea', 'WeatherTemp', 'white', wrapmultiline=True, width=500))
     # imgPhoto.append(getLabel('c:/este/recorrer/es/un/camino/largo/por/fin.txt', 'WeatherTemp', 'white', haspath=True, width=800))
+    # imgPhoto = map(ImageTk.PhotoImage, imgPhoto)
     # for img in imgPhoto:
     #     tk.Label(root, image=img, bg='black').pack(packparam)
     # root.mainloop()
@@ -1711,4 +1767,57 @@ if __name__ == '__main__':
     # # #     controls.append(control)
     # # #
     # # # root.mainloop()
+
+    root = tk.Tk()
+    test = 'FontAwesomeIcons'
+    if test == 'FontAwesomeIcons':
+        packparam = dict(side=tk.TOP, fill=tk.BOTH, expand=tk.YES)
+        iconList = ['fa-folder-open-o', 'fa-save', 'fa-file-o',
+                    'fa-file-archive-o']
+        iconStorage = []
+        commonOptions = dict(isPhotoImage=False, color='black')
+        for icon in iconList:
+            imgLine = [getFontAwesomeIcon(icon, size=18, **commonOptions),
+                       getFontAwesomeIcon(icon, size=24, **commonOptions),
+                       getFontAwesomeIcon(icon, size=36, **commonOptions),
+                       getFontAwesomeIcon(icon, size=48, **commonOptions),
+                       getFontAwesomeIcon(icon, size=72, **commonOptions),
+                       getFontAwesomeIcon(icon, size=148, **commonOptions)]
+            imgLine = map(lambda x: ImageTk.PhotoImage(x), imgLine)
+            iconStorage.append(imgLine)
+            frame = tk.Frame(root)
+            frame.pack(side=tk.TOP, fill=tk.X, expand=tk.YES)
+            for img in imgLine:
+                tk.Label(frame, image=img, bg='grey').pack(side=tk.LEFT)
+    if test == 'animation':
+        npos = 0
+        flag = False
+        def toogle():
+            global flag
+            flag = not flag
+            if flag:
+                animate()
+        def animate():
+            global flag, imgLine, label, npos
+            iconPhoto = imgLine[npos]
+            npos= (npos + 1) % 8
+            label['image'] = iconPhoto
+            if flag:
+                label.after(500, animate)
+
+        button = tk.Button(root, text='Toggle Animation', command=toogle)
+        button.pack()
+        icon = getFontAwesomeIcon('fa-spinner', color='black', size=100)
+        imgLine = map(lambda x: icon.rotate(-45*x, resample=Image.BILINEAR), range(8))
+        imgLine = map(lambda x: ImageTk.PhotoImage(x), imgLine)
+        frame = tk.Frame(root)
+        frame.pack(side=tk.TOP, fill=tk.X, expand=tk.YES)
+        for img in imgLine:
+            tk.Label(frame, image=img, bg='grey').pack(side=tk.LEFT)
+
+        iconPhoto = ImageTk.PhotoImage(icon)
+        label = tk.Label(root, image=iconPhoto, bg='grey')
+        label.pack(side=tk.BOTTOM)
+
+    root.mainloop()
     pass

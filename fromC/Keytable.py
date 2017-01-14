@@ -4,7 +4,7 @@
 
 from Keysym import *
 from Vkeys import *
-from KodiAddonIDE.KodiStubs.TkinterKeys import *
+from fromC.TkinterKeys import *
 
 XBMCK,  VK,  XBMCVK,  NAME = range(4)
 _xbmck, _vk, _xbmcvk, _name = [], [], [], []

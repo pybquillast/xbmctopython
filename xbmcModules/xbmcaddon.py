@@ -121,7 +121,7 @@ class Addon(object):
 
         if infoId in metadata:
             metadataInfo = root.find('./extension/{}'.format(infoId))
-            if metadataInfo: return metadataInfo.text
+            if metadataInfo is not None: return metadataInfo.text
             return ''
 
         if infoId == 'requires':

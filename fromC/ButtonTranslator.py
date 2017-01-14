@@ -2,7 +2,7 @@
             Archivo generado desde: https://github.com/xbmc/xbmc/blob/master/xbmc/input/ButtonTranslator.cpp
 '''
 
-from KodiAddonIDE.KodiStubs.fromC.WindowIDs import *
+from WindowIDs import *
 from key import *
 
 actions = {
