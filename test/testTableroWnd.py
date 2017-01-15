@@ -1,9 +1,10 @@
-import sys
 import os
 import re
+import sys
+
 sys.path.append(os.path.abspath('..'))
 from fromC import key as kodiKeyh
-import gui02 as xbmcgui
+from toClasify import gui02 as xbmcgui
 
 keyMap = dict((getattr(kodiKeyh, akey), akey) for akey in dir(kodiKeyh) if akey.startswith('ACTION_'))
 _action = dict([('0x{:04x}'.format(ival), x) for x, ival in kodiKeyh.__dict__.items() if x.startswith('ACTION_')])

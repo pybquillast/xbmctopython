@@ -4,17 +4,16 @@ import os
 import sys
 import tkSimpleDialog
 
-from fromC import ButtonTranslator
-from fromC.Keytable import VK, NAME, lookup
+from KodiAddonIDE.KodiStubs.fromC import WindowIDs
+from KodiAddonIDE.KodiStubs.fromC.ButtonTranslator import windows
+from KodiAddonIDE.KodiStubs.fromC.key import *
+from KodiAddonIDE.KodiStubs.xbmcModules.xbmcgui import ListItem
 from PIL import Image, ImageTk
 
 import controlXml
 import guiTop
+from fromC import ButtonTranslator
 from guiTop import WindowBase
-from KodiAddonIDE.KodiStubs.fromC import WindowIDs
-from KodiAddonIDE.KodiStubs.fromC.key import *
-from KodiAddonIDE.KodiStubs.fromC.ButtonTranslator import windows
-from KodiAddonIDE.KodiStubs.xbmcModules.xbmcgui import ListItem
 
 
 class Window(WindowBase):

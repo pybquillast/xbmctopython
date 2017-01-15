@@ -6,11 +6,11 @@ import ttk
 
 import ImageTk
 import xbmcaddon
+from KodiAddonIDE.KodiStubs.xbmcModules import xbmc
 from PIL import ImageFont
 from PIL import ImageGrab
 
 import controlXml
-from KodiAddonIDE.KodiStubs.xbmcModules import xbmc
 
 
 class Window(tk.Toplevel, object):

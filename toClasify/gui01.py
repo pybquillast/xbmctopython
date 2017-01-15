@@ -4,15 +4,15 @@ import re
 import sys
 import tkSimpleDialog
 
-from fromC import ButtonTranslator
-from fromC.Keytable import VK, NAME, lookup
+from KodiAddonIDE.KodiStubs.fromC import WindowIDs
+from KodiAddonIDE.KodiStubs.fromC.key import *
+from KodiAddonIDE.KodiStubs.xbmcModules.xbmcgui import ListItem
 from PIL import Image, ImageTk
 
 import controlXml
 import guiTop
-from KodiAddonIDE.KodiStubs.fromC import WindowIDs
-from KodiAddonIDE.KodiStubs.fromC.key import *
-from KodiAddonIDE.KodiStubs.xbmcModules.xbmcgui import ListItem
+from fromC import ButtonTranslator
+from fromC.Keytable import VK, NAME, lookup
 
 
 class Window(object):

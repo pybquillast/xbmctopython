@@ -36,7 +36,7 @@ If you clone the repository, for example, to the  directory **c:/modxbmcpy** in 
 ```
 - Create and install an importer instance
 ```
-    >>> import KodiScriptImporter as ksi
+    >>> from KodiImporter import KodiScriptImporter as ksi
     >>> importer = ksi.KodiScriptImporter()       # For Win x86 users. See module for details
     >>> importer.install()                        # Installed as a metha path importer
 ```
@@ -73,8 +73,8 @@ If you clone the repository, for example, to the  directory **c:/modxbmcpy** in 
 ```
     >>> import sys
     >>> sys.path.append('c:/modxbmcpy')
-    >>> import KodiServer as ks
-    >>> http = ks.runServer()   # Here you must apply the same parameters that you use for KodiScriptImporter
+    >>> from KodiImporter import KodiServer as ks
+    >>> httpd = ks.runServer(startBrowser=True)   # Here you must apply the same parameters that you use for KodiScriptImporter
 ```
 - Now your default webbrowser must open in the address localhost:5000
 - The webbrowser must show all your installed addons in groups: video, audio (music), image (picture) and executable (program)
@@ -82,7 +82,7 @@ If you clone the repository, for example, to the  directory **c:/modxbmcpy** in 
 - For stop the server
 ```
     >>> httpd.shutdown()                     # Stop the server
-    >>> httpd.server_clase()                 # Close the socket
+    >>> httpd.server_close()                 # Close the socket
 ```
 
 
