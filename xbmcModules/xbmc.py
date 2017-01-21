@@ -1032,6 +1032,7 @@ def getCondVisibility(condition):
         - visible = xbmc.getCondVisibility('[Control.IsVisible(41) + !Control.IsVisible(12)]')
     """
     pass
+    return True
 
 def getDVDState():
     """
