@@ -346,6 +346,11 @@ class ListItem(object):
         """
         self.setProperty('thumbnailImage', thumb)
 
+    def setArt(self, dictValues):
+        for key, value in dictValues:
+            key = {'thumb':'thumbnailImage'}.get(key, key)
+            self.setProperty(key, value)
+
 #
 #    modulos de xbmc stubs
 #
