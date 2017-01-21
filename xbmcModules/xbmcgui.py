@@ -289,7 +289,7 @@ class ListItem(object):
         Example:
             self.list.getSelectedItem().setInfo('video', { 'Genre': 'Comedy' })
         """
-        self._ItemInfo = (type, infoLabels)
+        self._properties['infolabels'] = (type, infoLabels)
 
     def setLabel(self, label):
         """
@@ -347,10 +347,9 @@ class ListItem(object):
         self.setProperty('thumbnailImage', thumb)
 
     def setArt(self, dictValues):
-        for key, value in dictValues:
+        for key, value in dictValues.items():
             key = {'thumb':'thumbnailImage'}.get(key, key)
             self.setProperty(key, value)
-
 #
 #    modulos de xbmc stubs
 #

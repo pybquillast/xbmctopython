@@ -127,6 +127,7 @@ class KodiServer(ksi.Runner):
         import xbmcaddon
         import xbmcgui
         import xbmc
+        import xbmcplugin
         pathDir = xbmc.translatePath('special://home/addons')
         kdAddon = {}
         for addon in os.walk(pathDir).next()[1]:
@@ -162,14 +163,15 @@ class KodiServer(ksi.Runner):
                 listitem = xbmcgui.ListItem(label = name , iconImage = addon.getAddonInfo('icon'))
                 listitem.setProperty('fanart_image', addon.getAddonInfo('fanart'))
                 kwargs['listitem'] = listitem
-                self.addDirectoryItem(**kwargs)
-            self.endOfDirectory(handle = 0)
+                xbmcplugin.addDirectoryItem(**kwargs)
+            xbmcplugin.endOfDirectory(handle = 0)
             handle, isFolder, content = self.answ
             body += self.fillListBox(content)
             self.answ = []
         return self.htmlHead + body + self.htmlTail
 
     def runAddon(self, url):
+        self.initGlobals()
         if url == '/': return self.kodiAddons()
         self.run(url)
         handle, isFolder, content = self.answ

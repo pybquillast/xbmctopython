@@ -59,6 +59,7 @@ class Addon(object):
             posFin = sys.argv[0].find('/', posIni)
             addonId = sys.argv[0][posIni:posFin]
             self.addonId = kwargs.get('id',None) or addonId
+
     @classmethod
     def _parseXml(self, settingXmlFile):
         try:
@@ -70,6 +71,11 @@ class Addon(object):
                 content = re.sub(r'(?<==)(["\'])(.*?)\1', lambda x: quoteattr(x.group(2)), content)
             root = ET.fromstring(content)
         return root
+
+    def _open(self, filename):
+        with open(filename, 'r') as f:
+            content = f.read()
+        return content
 
     def getAddonInfo(self, infoId):
         """
@@ -115,7 +121,7 @@ class Addon(object):
 
         if infoId in metadata:
             metadataInfo = root.find('./extension/{}'.format(infoId))
-            if metadataInfo: return metadataInfo.text
+            if metadataInfo is not None: return metadataInfo.text
             return ''
 
         if infoId == 'requires':
@@ -138,19 +144,18 @@ class Addon(object):
         subPath = ['/resources/language/English', '/resources']
         for langPath in subPath:
             langPath = xbmc.translatePath(self.addonPath + langPath)
-            if os.path.exists(os.path.join(langPath, 'strings.xml')):
+            if os.path.exists(os.path.join(langPath, 'strings.po')):
+                langPath = os.path.join(langPath, 'strings.po')
+                langStr = self._open(langPath)
+                pattern = r'msgctxt "#{}"\nmsgid "(?P<msgid>[^"]*)"\nmsgstr "(?P<msgstr>[^"]*)"'.format(stringId)
+                match = re.search(pattern, langStr)
+                if match: return match.group('msgstr') or match.group('msgid')
+            elif os.path.exists(os.path.join(langPath, 'strings.xml')):
                 langPath = os.path.join(langPath, 'strings.xml')
                 root = self._parseXml(langPath)
                 srchStr = './/string[@id="%s"]' % (stringId)
                 element = root.find(srchStr)
                 if element is not None: return element.text
-            elif os.path.exists(os.path.join(langPath, 'strings.po')):
-                langPath = os.path.join(langPath, 'strings.po')
-                with open(langPath, 'r') as langFile:
-                    langStr = langFile.read()
-                pattern = r'msgctxt "#{}"\nmsgid "(?P<msgid>[^"]*)"\nmsgstr "(?P<msgstr>[^"]*)"'.format(stringId)
-                match = re.search(pattern, langStr)
-                if match: return match.group('msgid')
         else:
             return ''
         # raise Exception('There is no string asociated with id=' + str(stringId))
